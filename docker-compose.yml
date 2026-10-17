@@ -1,0 +1,7 @@
+services:
+  pipeline:
+    build: .
+    container_name: turnkey-pipeline
+    restart: on-failure
+    volumes:
+      - ./data:/app/data
