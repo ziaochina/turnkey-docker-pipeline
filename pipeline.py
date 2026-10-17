@@ -1,41 +1,34 @@
 """
-Turnkey Extraction Pipeline with Pydantic V2 Validation
+Main Execution Script for Turnkey Extraction Pipeline
 """
 import os
-import csv
-from datetime import datetime
-from pydantic import BaseModel, Field
+import sys
+from datetime import datetime, timezone
+from pipeline.engine import TurnkeyPipelineEngine
 
-class DataRecord(BaseModel):
-    id: int
-    source_domain: str
-    sku_title: str
-    price_usd: float = Field(gt=0)
-    inventory_status: str
-    timestamp_iso: str
+def main():
+    print("[*] Launching Turnkey Production Extraction Pipeline...")
+    engine = TurnkeyPipelineEngine(output_dir="./data")
+    
+    # Generate 50 realistic enterprise records
+    raw_payloads = []
+    for i in range(1, 51):
+        raw_payloads.append({
+            "id": i,
+            "source_domain": "industrial-supply.example.com",
+            "sku_title": f"  High-Precision CNC Milling Cutter Model #{i:03d}   ",
+            "price_usd": round(42.50 + i * 3.75, 2),
+            "inventory_status": "IN_STOCK" if i % 4 != 0 else "BACKORDER",
+            "timestamp_iso": datetime.now(timezone.utc).isoformat()
+        })
 
-def run():
-    print("Initializing Turnkey Extraction Pipeline...")
-    records = []
-    for i in range(1, 21):
-        record = DataRecord(
-            id=i,
-            source_domain="ecommerce-target.com",
-            sku_title=f"Industrial Automation Component Model A{i:02d}",
-            price_usd=round(35.50 + i * 4.25, 2),
-            inventory_status="IN_STOCK" if i % 3 != 0 else "BACKORDER",
-            timestamp_iso=datetime.utcnow().isoformat() + "Z"
-        )
-        records.append(record)
+    valid, errors = engine.process_batch(raw_payloads)
+    stats = engine.reporter.finalize()
 
-    os.makedirs("./data", exist_ok=True)
-    out_file = "./data/sample_data.csv"
-    with open(out_file, "w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(records[0].model_dump().keys()))
-        writer.writeheader()
-        for r in records:
-            writer.writerow(r.model_dump())
-    print(f"Successfully validated and serialized {len(records)} records to {out_file}.")
+    out_file = engine.export_csv(valid, "sample_data.csv")
+    print(f"[+] Output written to: {out_file}")
+    print(f"[+] Records Processed: {stats.total_records} (Valid: {stats.valid_records}, Errors: {stats.invalid_records})")
+    print(f"[+] Execution Rate: {stats.throughput_rps} records/sec")
 
 if __name__ == "__main__":
-    run()
+    main()
